@@ -13,6 +13,77 @@ var createScene = function () {
     // This creates and positions a free camera (non-mesh)
     var camera = new BABYLON.FreeCamera("camera1", new BABYLON.Vector3(size/2, size/2, -20), scene);
 
+    var FreeCameraKeyboardRotateInput = function () {
+        this._keys = [];
+        this.keysLeft = [65];
+        this.keysRight = [68];
+        this.keysUp = [87];
+        this.keysDown= [83]
+        this.sensibility = 0.005;
+      };
+      FreeCameraKeyboardRotateInput.prototype.getClassName = function () {
+        return "FreeCameraKeyboardRotateInput";
+      };
+      FreeCameraKeyboardRotateInput.prototype.getSimpleName = function () {
+        return "keyboardRotate";
+      };
+      FreeCameraKeyboardRotateInput.prototype.attachControl = function (noPreventDefault) {
+        var _this = this;
+        var engine = this.camera.getEngine();
+        var element = engine.getInputElement();
+        if (!this._onKeyDown) {
+          element.tabIndex = 1;
+          this._onKeyDown = function (evt) {
+            if (_this.keysLeft.indexOf(evt.keyCode) !== -1 || _this.keysRight.indexOf(evt.keyCode) !== -1
+               ||_this.keysUp.indexOf(evt.keyCode) !== -1 || _this.keysDown.indexOf(evt.keyCode) !== -1) {
+              var index = _this._keys.indexOf(evt.keyCode);
+              if (index === -1) {
+                _this._keys.push(evt.keyCode);
+              }
+              if (!noPreventDefault) {
+                evt.preventDefault();
+              }
+            }
+          };
+          this._onKeyUp = function (evt) {
+            if (_this.keysLeft.indexOf(evt.keyCode) !== -1 || _this.keysRight.indexOf(evt.keyCode) !== -1
+               ||_this.keysUp.indexOf(evt.keyCode) !== -1 || _this.keysDown.indexOf(evt.keyCode) !== -1) {
+              var index = _this._keys.indexOf(evt.keyCode);
+              if (index >= 0) {
+                _this._keys.splice(index, 1);
+              }
+              if (!noPreventDefault) {
+                evt.preventDefault();
+              }
+            }
+          };
+          element.addEventListener("keydown", this._onKeyDown, false);
+          element.addEventListener("keyup", this._onKeyUp, false);
+          BABYLON.Tools.RegisterTopRootEvents(canvas, [{ name: "blur", handler: this._onLostFocus }]);
+        }
+      };
+      FreeCameraKeyboardRotateInput.prototype.checkInputs = function () {
+        if (this._onKeyDown) {
+          var camera = this.camera;
+          // Keyboard
+          for (var index = 0; index < this._keys.length; index++) {
+            var keyCode = this._keys[index];
+            if (this.keysLeft.indexOf(keyCode) !== -1) {
+              camera.cameraRotation.y -= this.sensibility;
+            } else if (this.keysRight.indexOf(keyCode) !== -1) {
+              camera.cameraRotation.y += this.sensibility;
+            }
+            if (this.keysUp.indexOf(keyCode) !== -1) {
+                camera.cameraRotation.x -= this.sensibility;
+              } else if (this.keysDown.indexOf(keyCode) !== -1) {
+                camera.cameraRotation.x += this.sensibility;
+              }
+          }
+        }
+      };
+    camera.inputs.add(new FreeCameraKeyboardRotateInput());
+
+
     // This targets the camera to scene origin
     camera.setTarget(BABYLON.Vector3.Zero());
 
@@ -21,6 +92,69 @@ var createScene = function () {
 
     // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
     var light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+      
+    var gui = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("myUI");
+    
+    var panel = new BABYLON.GUI.StackPanel();
+    panel.width = "1000px";
+    panel.height = "100px";
+    panel.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
+    panel.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+    gui.addControl(panel);
+
+    var inputText = new BABYLON.GUI.TextBlock();
+    inputText.text = "4;4";
+    inputText.color = "white";
+    inputText.fontSize = 24;
+     panel.addControl(inputText);
+
+
+    var slider = new BABYLON.GUI.Slider();
+    slider.minimum = 10;
+    slider.maximum = 250;
+    slider.value = updateRate;
+    slider.height = "20px";
+    slider.width = "200px";
+    slider.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+
+    slider.onValueChangedObservable.add(function(value) {
+        //header.text = "Speed: " + slider.value;
+        console.log(slider.value);
+        updateRate = parseInt(slider.value);
+    });
+    panel.addControl(slider); 
+    
+    var pause = BABYLON.GUI.Button.CreateSimpleButton("button", "Pause");
+    var isPaused = false;
+    pause.top = "100px";
+    pause.left = "0px";
+    pause.width = "150px";
+    pause.height = "50px";
+    pause.cornerRadius = 20;
+    pause.thickness = 4;
+    pause.children[0].color = "#DFF9FB";
+    pause.children[0].fontSize = 24;
+    pause.color = "#FF7979";
+    pause.background = "#007900";
+    pause.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    pause.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+
+    //gui.addControl(slider);
+    panel.addControl(pause);
+    var reset = BABYLON.GUI.Button.CreateSimpleButton("button", "reset");
+    reset.top = "100px";
+    reset.left = "0px";
+    reset.width = "150px";
+    reset.height = "50px";
+    reset.cornerRadius = 20;
+    reset.thickness = 4;
+    reset.children[0].color = "#DFF9FB";
+    reset.children[0].fontSize = 24;
+    reset.color = "#FF7979";
+    reset.background = "#007900";
+    reset.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+    reset.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+    panel.addControl(reset);   
 
     class Cell {
         constructor(xPos,yPos,zPos,state,life,texture){
@@ -47,7 +181,7 @@ var createScene = function () {
         update(state,texture){
             if(state != this.state){
                 this.state = state;
-                if(this.state == 0){
+                if(state <= 0){
                     this.body.dispose();
                 }
                 if(this.state == this.life){
@@ -65,55 +199,21 @@ var createScene = function () {
         }
     }
     class Grid{
-        constructor(size){
+        constructor(size,ruleSet){
             this.size = size;
-            this.life = 2;
+            this.life = 1;
             this.grid = [];
+            this.ruleSet = ruleSet;
             this.texture = new BABYLON.StandardMaterial("mat", scene);
-            this.texture.diffuseColor = new BABYLON.Color3(1,0,0);
-            for(let i = 0;i<size;i++){
-                this.grid.push([...Array(size)].map(e => Array(size)));
+            this.texture.diffuseColor = new BABYLON.Color3(.95, .75, .5);
+            this.texture.bumpTexture = new BABYLON.Texture("https://i.imgur.com/JIbGEsB.jpg", scene);
+            this.textures=[];
+            for(let i =0;i<this.life;i++){
+                this.textures.push(new BABYLON.StandardMaterial("mat", scene));
+                this.textures[i].diffuseColor = new BABYLON.Color3(i/this.life,0,0);
             }
-            for(let i = 0;i<size;i++){
-                for(let j = 0;j<size;j++){
-                    for(let k =0;k<size;k++){
-                        this.grid[i][j][k] = new Cell(j,-i,k,0,this.life,this.texture);
-                    }
-                }
-            }
-            /*
-            3d live and born on 4 neighbors
-            Blinker:
             
-                this.grid[3][2][5].update(this.life);
-                this.grid[2][3][6].update(this.life);
-                this.grid[3][3][5].update(this.life);
-                this.grid[2][2][5].update(this.life);
-            */
-
-            for(let i =0;i<8;i++){
-                for(let j = 0;j<8;j++){
-                    for(let k = 0;k<8;k++){
-                        this.grid[20+i][20+j][20+k].update(this.life);
-                    }
-                }
-            }
-
-            // this.grid[3][2][5].update(1);
-            // this.grid[2][1][6].update(1);
-            // this.grid[1][3][5].update(1);
-            // this.grid[2][3][5].update(1);
-            // this.grid[3][3][5].update(1);
-            // this.grid[21][20][20].update(this.life);
-            // this.grid[20][21][20].update(this.life);
-            // this.grid[21][21][20].update(this.life);
-            // this.grid[20][20][20].update(this.life);
-
-             //this.grid[11][10][11].update(1);
-            // this.grid[10][11][11].update(2);
-            // this.grid[11][11][11].update(2);
-            // this.grid[10][10][11].update(2);
-            //this.grid[3][3][5].update(1);
+            this.createGrid();
         }
         mutate() {
             // make a copy of grid and fill it with zeros
@@ -133,7 +233,7 @@ var createScene = function () {
                     for(let k = 0;k<this.size; k++){
                         let n = this.getNeighbors(i, j, k);
                         if(this.grid[i][j][k].getState() > 0){
-                            if(n==1 || n==3 || n==5){
+                            if(this.ruleSet[0].includes(n)){
                                 temp[i][j][k] = this.grid[i][k][j].getState();
                                 temp[i][j][k]-=1;
                             }
@@ -142,7 +242,7 @@ var createScene = function () {
                             }           
                         }
                         else{
-                            if(n == 2 || n==4 || n==6){
+                            if(this.ruleSet[1].includes(n)){
                                 temp[i][j][k] = this.life;
                             }                   
                         }
@@ -154,7 +254,8 @@ var createScene = function () {
                 for(let j = 0;j<size;j++){
                     for(let k = 0;k<size;k++){
                         //console.log(temp[i][j][k]);
-                        this.grid[i][j][k].update(temp[i][j][k],this.texture)
+                        this.grid[i][j][k].update(temp[i][j][k],this.texture);
+                        //console.log(this.textures[temp[i][j][k]]);
                         
                     }
                 }
@@ -189,6 +290,69 @@ var createScene = function () {
     
         return neighbors;
         }
+
+        reset(newRules){
+            for(let i = 0;i<size;i++){
+                for(let j = 0;j<size;j++){
+                    for(let k =0;k<size;k++){
+                        this.grid[i][j][k].update(0,this.texture);;
+                    }
+                }
+            }
+            this.grid = [];
+            this.ruleSet = newRules;
+            this.createGrid();
+        }
+
+        createGrid(){
+            for(let i = 0;i<size;i++){
+                this.grid.push([...Array(size)].map(e => Array(size)));
+            }
+            for(let i = 0;i<size;i++){
+                for(let j = 0;j<size;j++){
+                    for(let k =0;k<size;k++){
+                        this.grid[i][j][k] = new Cell(j,-i,k,0,this.life,this.texture);
+                    }
+                }
+            }
+                        
+            // 3d live and born on 4 neighbors
+            // Blinker:
+            
+                // this.grid[3][2][5].update(this.life);
+                // this.grid[2][3][6].update(this.life);
+                // this.grid[3][3][5].update(this.life);
+                // this.grid[2][2][5].update(this.life);
+            
+
+          //  a coule of planes
+           for(let i =0;i<8;i++){
+            for(let j = 0;j<8;j++){
+                for(let k = 0;k<8;k++){
+                    if(j%2==0){
+                        this.grid[20+i][20+j][20+k].update(this.life);
+                    }
+                    
+                }
+            }
+        }
+
+        // this.grid[3][2][5].update(1);
+        // this.grid[2][1][6].update(1);
+        // this.grid[1][3][5].update(1);
+        // this.grid[2][3][5].update(1);
+        // this.grid[3][3][5].update(1);
+        // this.grid[21][20][20].update(this.life);
+        // this.grid[20][21][20].update(this.life);
+        // this.grid[21][21][20].update(this.life);
+        // this.grid[20][20][20].update(this.life);
+
+         //this.grid[11][10][11].update(1);
+        // this.grid[10][11][11].update(2);
+        // this.grid[11][11][11].update(2);
+        // this.grid[10][10][11].update(2);
+        //this.grid[3][3][5].update(1);
+        }
         toString() {
         }
 
@@ -197,63 +361,76 @@ var createScene = function () {
 
     // Default intensity is 1. Let's dim the light a small amount
     light.intensity = 0.7;
-    
-    var grid = new Grid(size);
+    ruleSet = [[4,5,6],[4,5,6]];
+    var grid = new Grid(size,ruleSet);
 
 
-    var gui = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("myUI");
-    
-    var panel = new BABYLON.GUI.StackPanel();
-    panel.width = "1000px";
-    panel.height = "100px";
-    panel.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
-    panel.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-    gui.addControl(panel);
+    var param = "";
+    scene.actionManager = new BABYLON.ActionManager(scene);
+    action = new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnKeyUpTrigger,function(event) {
+         var key = event.sourceEvent.key;      
+         console.log(key) ;   
+        if (key == "Subtract") { key = "-"; }
+        if (key == "Decimal") { key = "."; }
 
+        if (key == "Enter") {
+           
+		   //do something with your string
 
-    var slider = new BABYLON.GUI.Slider();
-    slider.minimum = 10;
-    slider.maximum = 250;
-    slider.value = updateRate;
-    slider.height = "20px";
-    slider.width = "200px";
-    slider.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+        } else if (key == "Backspace") {
+            param = param.substring(0, param.length - 1);
+              inputText.text = param;
+        }
+        else if
+            (key == "0" || key == "1" || key == "2" || key == "3" || key == "4" || key == "5" ||
+            key == "6" || key == "7" || key == "8" || key == "9" || key == "," || key == ";" || key == "-") {
 
-    slider.onValueChangedObservable.add(function(value) {
-        //header.text = "Speed: " + slider.value;
-        console.log(slider.value);
-        updateRate = parseInt(slider.value);
-    });
-    panel.addControl(slider); 
-    
-    var button = BABYLON.GUI.Button.CreateSimpleButton("button", "Pause");
-    var pause = false;
-    button.top = "100px";
-    button.left = "0px";
-    button.width = "150px";
-    button.height = "50px";
-    button.cornerRadius = 20;
-    button.thickness = 4;
-    button.children[0].color = "#DFF9FB";
-    button.children[0].fontSize = 24;
-    button.color = "#FF7979";
-    button.background = "#007900";
-    button.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
-    button.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-    button.onPointerClickObservable.add(function () {
-        pause = !pause;
-        if(pause){
-            button.background = "#EB4D4B";
+            param += key;
+            inputText.text = param;
+        }
+          }) ;  
+    scene.actionManager.registerAction(action);
+
+    reset.onPointerClickObservable.add(function () {
+        
+       tick = 0;
+       let str = inputText.text.split(";");
+       let input1 = str[0];
+       if(str[0].length>1){
+        let input1 = str[0].split(",");
+       }
+       let input2 = str[1];
+       if(str[1].length>1){
+        let input2 = str[1].split(",");
+       }
+       
+       
+
+       console.log(input1);
+       console.log(input2);
+
+       let newRules = [input1,input2];
+    //    for(let i = 0; i<input1.length;i++){
+    //        newRules[0].push(input1[i]);
+    //    }
+    //    for(let i = 0; i<input2.length;i++){
+    //     newRules[1].push(input2[i]);
+    //     }
+        console.log(newRules.toString());
+        grid.reset(newRules);
+       // grid.updateRules(newRules);
+        
+    });   
+    pause.onPointerClickObservable.add(function () {
+        isPaused = !isPaused;
+        if(isPaused){
+            pause.background = "#EB4D4B";
         } else{
-            button.background = "#007900";
+            pause.background = "#007900";
         }
     });
-    //gui.addControl(slider);
-    panel.addControl(button);    
-    // Our built-in 'ground' shape.
-   // var ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 6, height: 6}, scene);
    scene.registerBeforeRender(function () {
-       if(tick%updateRate == 0 && !pause){
+       if(tick%updateRate == 0 && !isPaused){
            grid.mutate();
            //console.log(grid.toString())
         }
